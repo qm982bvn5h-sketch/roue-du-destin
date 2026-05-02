@@ -1,0 +1,315 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>La Roue du Destin - Soungalo Edition</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=Comic+Neue:wght@700&display=swap');
+        
+        :root { --primary: #6b46c1; }
+        
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow-x: hidden;
+        }
+        
+        header { text-align: center; padding: 2rem 1rem 1rem; width: 100%; }
+        h1 {
+            font-size: 1.9rem;
+            background: linear-gradient(to right, #c084fc, #60a5fa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .wheel-container {
+            position: relative;
+            width: 320px;
+            height: 320px;
+            margin: 2rem auto;
+            filter: drop-shadow(0 25px 40px rgba(107, 70, 193, 0.5));
+        }
+        @media (min-width: 640px) {
+            .wheel-container { width: 420px; height: 420px; }
+        }
+        
+        canvas { width: 100%; height: 100%; border-radius: 50%; }
+        
+        .arrow {
+            position: absolute;
+            top: -15px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 35px solid transparent;
+            border-right: 35px solid transparent;
+            border-bottom: 70px solid #f43f5e;
+            z-index: 10;
+            filter: drop-shadow(0 10px 15px rgba(244, 63, 94, 0.4));
+        }
+        
+        .controls { text-align: center; margin: 2rem 0; }
+        
+        #spinBtn {
+            padding: 18px 50px;
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(90deg, #c026d3, #7c3aed);
+            color: white;
+            border: none;
+            border-radius: 9999px;
+            cursor: pointer;
+            box-shadow: 0 15px 30px rgba(192, 38, 211, 0.4);
+            transition: all 0.3s;
+        }
+        
+        #spinBtn:hover:not(:disabled) {
+            transform: translateY(-8px) scale(1.05);
+        }
+        
+        #spinBtn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+        #result {
+            margin: 2rem auto;
+            padding: 2rem;
+            width: 90%;
+            max-width: 420px;
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(20px);
+            border-radius: 24px;
+            text-align: center;
+            border: 2px solid rgba(255,255,255,0.2);
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            display: none; /* Caché au début */
+        }
+        #result.show { display: block; opacity: 1; transform: translateY(0); }
+        
+        #resultEmoji { font-size: 4.5rem; margin-bottom: 1rem; display: block; }
+        #resultText { font-size: 1.8rem; font-family: 'Comic Neue', cursive; line-height: 1.2; }
+        
+        .share-btn {
+            margin-top: 1.5rem;
+            padding: 14px 40px;
+            background: #22c55e;
+            color: white;
+            border: none;
+            border-radius: 9999px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        
+        .share-btn:hover { background: #16a34a; }
+        
+        .confetti-container {
+            position: fixed;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            z-index: 100;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>🎰 La Roue du Destin 🎰</h1>
+        <p>ce site a été cree par  Soungalo mais , Ton destin est entre tes  mains 😅</p>
+    </header>
+
+    <div class="wheel-container">
+        <canvas id="wheel" width="420" height="420"></canvas>
+        <div class="arrow"></div>
+    </div>
+
+    <div class="controls">
+        <button id="spinBtn">FAIRE TOURNER LA ROUE</button>
+    </div>
+
+    <div id="result">
+        <span id="resultEmoji"></span>
+        <div id="resultText"></div>
+        <button class="share-btn" id="shareBtn">📤 Partager ma réponse</button>
+    </div>
+
+    <footer style="margin-top:auto; padding:2rem; opacity:0.8; text-align: center;">
+        Va réviser, c’est mieux 😂
+    </footer>
+
+    <div class="confetti-container" id="confetti"></div>
+
+    <script>
+        const canvas = document.getElementById('wheel');
+        const ctx = canvas.getContext('2d');
+        const spinBtn = document.getElementById('spinBtn');
+        const resultDiv = document.getElementById('result');
+        const resultText = document.getElementById('resultText');
+        const resultEmoji = document.getElementById('resultEmoji');
+        const shareBtn = document.getElementById('shareBtn');
+
+        const segments = [
+            { label: "Dormir", emoji: "😴", color: "#3b82f6", msg: "tu dois aller dormir" },
+            { label: "Réviser", emoji: "📚", color: "#22c55e", msg: "tu dois aller réviser" },
+            { label: "TikTok", emoji: "📱", color: "#ec4899", msg: "tu dois regarder TikTok" },
+            { label: "Rien", emoji: "🤷‍♂️", color: "#f59e0b", msg: "tu dois rien faire va te reposer" }
+        ];
+
+        let currentRotation = 0;
+        let isSpinning = false;
+        let finalMessage = "";
+
+        function drawWheel(rotation = 0) {
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const radius = 200;
+            const anglePerSegment = (2 * Math.PI) / segments.length;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            for (let i = 0; i < segments.length; i++) {
+                const startAngle = rotation + (i * anglePerSegment);
+                const endAngle = startAngle + anglePerSegment;
+
+                ctx.beginPath();
+                ctx.arc(cx, cy, radius, startAngle, endAngle);
+                ctx.lineTo(cx, cy);
+                ctx.fillStyle = segments[i].color;
+                ctx.fill();
+                ctx.strokeStyle = "#1e2937";
+                ctx.lineWidth = 8;
+                ctx.stroke();
+            }
+
+            // Centre de la roue
+            ctx.beginPath();
+            ctx.arc(cx, cy, 40, 0, Math.PI * 2);
+            ctx.fillStyle = "#1e2937";
+            ctx.fill();
+
+            // Textes et Emojis
+            for (let i = 0; i < segments.length; i++) {
+                const angle = rotation + (i * anglePerSegment) + (anglePerSegment / 2);
+                const x = cx + Math.cos(angle) * 120;
+                const y = cy + Math.sin(angle) * 120;
+
+                ctx.save();
+                ctx.translate(x, y);
+                ctx.rotate(angle + Math.PI / 2);
+                ctx.font = "bold 30px Poppins";
+                ctx.fillStyle = "#fff";
+                ctx.textAlign = "center";
+                ctx.fillText(segments[i].emoji, 0, -10);
+                ctx.font = "700 16px Poppins";
+                ctx.fillText(segments[i].label.toUpperCase(), 0, 25);
+                ctx.restore();
+            }
+        }
+
+        function getWinningSegment(rotation) {
+            const anglePerSegment = (2 * Math.PI) / segments.length;
+            let normalized = -rotation - Math.PI / 2;
+            normalized = ((normalized % (2 * Math.PI)) + (2 * Math.PI)) % (2 * Math.PI);
+            return Math.floor(normalized / anglePerSegment) % segments.length;
+        }
+
+        function spinWheel() {
+            if (isSpinning) return;
+            
+            isSpinning = true;
+            spinBtn.disabled = true;
+            resultDiv.classList.remove('show');
+
+            const spins = 8; 
+            const degrees = (spins * 360) + Math.random() * 360;
+            const totalRotation = (degrees * Math.PI) / 180;
+
+            let startTime = null;
+            const duration = 4000;
+
+            function animate(ts) {
+                if (!startTime) startTime = ts;
+                let progress = Math.min((ts - startTime) / duration, 1);
+                progress = 1 - Math.pow(1 - progress, 3); // Ease out effect
+
+                const currentAngle = totalRotation * progress;
+                drawWheel(currentAngle);
+
+                if (progress < 1) {
+                    requestAnimationFrame(animate);
+                } else {
+                    isSpinning = false;
+                    currentRotation = currentAngle;
+                    const winnerIndex = getWinningSegment(currentRotation);
+                    showResult(winnerIndex);
+                    spinBtn.disabled = false;
+                }
+            }
+            requestAnimationFrame(animate);
+        }
+
+        function showResult(index) {
+            const seg = segments[index];
+            finalMessage = seg.msg;
+            resultEmoji.textContent = seg.emoji;
+            resultText.textContent = finalMessage;
+            resultDiv.classList.add('show');
+            launchConfetti();
+        }
+
+        // CORRECTION DU BUG PARTAGER
+        shareBtn.addEventListener('click', async () => {
+            const textToShare = `La Roue du Destin a parlé : "${finalMessage}" ! Tente ta chance ici 🎰`;
+            
+            if (navigator.share) {
+                try {
+                    await navigator.share({
+                        title: 'Mon Destin',
+                        text: textToShare,
+                        url: window.location.href
+                    });
+                } catch (err) {
+                    console.log("Erreur de partage");
+                }
+            } else {
+                // Fallback : Copie dans le presse-papier si le partage direct n'est pas dispo
+                navigator.clipboard.writeText(textToShare);
+                alert("Réponse copiée ! Tu peux la coller sur WhatsApp ou TikTok 🚀");
+            }
+        });
+
+        function launchConfetti() {
+            const container = document.getElementById('confetti');
+            for (let i = 0; i < 100; i++) {
+                const c = document.createElement('div');
+                c.style.position = 'absolute';
+                c.style.width = '8px';
+                c.style.height = '8px';
+                c.style.background = ['#c084fc','#22c55e','#ec4899','#f59e0b'][Math.floor(Math.random()*4)];
+                c.style.left = Math.random() * 100 + 'vw';
+                c.style.top = '-20px';
+                container.appendChild(c);
+
+                setTimeout(() => {
+                    c.style.transition = 'all 3s ease-out';
+                    c.style.transform = `translate(${Math.random()*400-200}px, ${window.innerHeight}px) rotate(${Math.random()*1000}deg)`;
+                    c.style.opacity = '0';
+                }, 50);
+
+                setTimeout(() => c.remove(), 3000);
+            }
+        }
+
+        spinBtn.addEventListener('click', spinWheel);
+        drawWheel(0);
+    </script>
+</body>
+</html>
